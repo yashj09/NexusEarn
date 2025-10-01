@@ -5,7 +5,7 @@ import {
   NexusSDK,
   type OnAllowanceHookData,
   type OnIntentHookData,
-} from "@avail-project/nexus";
+} from "@avail-project/nexus-core";
 import {
   createContext,
   useCallback,
