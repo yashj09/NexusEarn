@@ -1,3 +1,4 @@
+"use client";
 import { getStatusText } from "@/lib/utils";
 import {
   NEXUS_EVENTS,
