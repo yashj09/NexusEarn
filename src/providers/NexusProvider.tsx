@@ -20,6 +20,7 @@ interface NexusContextType {
   intentRefCallback: React.RefObject<OnIntentHookData | null>;
   allowanceRefCallback: React.RefObject<OnAllowanceHookData | null>;
   handleInit: () => Promise<void>;
+  isInitialized: boolean; // NEW
 }
 
 const NexusContext = createContext<NexusContextType | null>(null);
@@ -28,10 +29,10 @@ const NexusProvider = ({ children }: { children: React.ReactNode }) => {
   const sdk = useMemo(
     () =>
       new NexusSDK({
-        network: "mainnet",
+        network: "testnet", // Change to 'testnet' for testing
         debug: true,
       }),
-    [],
+    []
   );
   const { status } = useAccount();
   const {
@@ -53,16 +54,23 @@ const NexusProvider = ({ children }: { children: React.ReactNode }) => {
   }, [sdk, attachEventHooks, initializeNexus]);
 
   useEffect(() => {
-    /**
-     * Uncomment to initialize Nexus SDK as soon as wallet is connected
-     */
-    // if (status === "connected") {
-    //   handleInit();
-    // }
-    if (status === "disconnected") {
-      deinitializeNexus();
+    // AUTO-INITIALIZE when wallet connects (defer a tick to avoid wallet races)
+    if (status === "connected" && !sdk.isInitialized()) {
+      const t = setTimeout(() => {
+        console.log("Wallet connected, initializing Nexus...");
+        handleInit();
+      }, 50);
+      return () => clearTimeout(t);
     }
-  }, [status, deinitializeNexus]);
+
+    return () => {
+      // Cleanup on unmount only if disconnected
+      if (status === "disconnected" && sdk.isInitialized()) {
+        deinitializeNexus();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   const value = useMemo(
     () => ({
@@ -70,8 +78,9 @@ const NexusProvider = ({ children }: { children: React.ReactNode }) => {
       intentRefCallback,
       allowanceRefCallback,
       handleInit,
+      isInitialized: sdk.isInitialized(), // NEW
     }),
-    [nexusSDK, intentRefCallback, allowanceRefCallback, handleInit],
+    [nexusSDK, intentRefCallback, allowanceRefCallback, handleInit, sdk]
   );
 
   return (

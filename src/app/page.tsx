@@ -1,34 +1,31 @@
 "use client";
 
-import ConnectWallet from "@/components/blocks/connect-wallet";
 import Nexus from "@/components/nexus";
-import NexusInitButton from "@/components/nexus-init";
-import { useNexus } from "@/providers/NexusProvider";
+import ConnectWallet from "@/components/blocks/connect-wallet";
+import { useAccount } from "wagmi";
 
 export default function Home() {
-  const { nexusSDK } = useNexus();
+  const { isConnected } = useAccount();
+
   return (
-    <div className="font-sans flex flex-col items-center justify-items-center min-h-screen p-8 pb-20 gap-y-6 sm:p-20">
-      <h1 className="text-3xl font-semibold z-10">
-        Avail Nexus Next.js template
-      </h1>
-      <h2 className="text-lg font-semibold z-10">
-        Do you first transaction in seconds
-      </h2>
-      <div className="flex gap-x-4 items-center justify-center z-10">
+    <div className="flex flex-col items-center justify-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
+      <main className="flex flex-col gap-8 items-center w-full">
+        {/* Header */}
+        <div className="text-center space-y-4">
+          <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+            CrossYield
+          </h1>
+          <p className="text-lg text-muted-foreground max-w-2xl">
+            Adaptive multi-chain yield aggregator powered by Avail Nexus
+          </p>
+        </div>
+
+        {/* Wallet Connect */}
         <ConnectWallet />
-        <NexusInitButton />
-      </div>
-      {nexusSDK?.isInitialized() && <Nexus />}
-      <div
-        className="fixed inset-0 z-0"
-        style={{
-          backgroundImage: `
-            radial-gradient(125% 125% at 50% 10%, #ffffff 40%, #14b8a6 100%)
-          `,
-          backgroundSize: "100% 100%",
-        }}
-      />
+
+        {/* Main Content */}
+        {isConnected && <Nexus />}
+      </main>
     </div>
   );
 }

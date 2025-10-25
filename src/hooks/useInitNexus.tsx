@@ -14,22 +14,53 @@ const useInitNexus = (sdk: NexusSDK) => {
   const [nexusSDK, setNexusSDK] = useState<NexusSDK | null>(null);
   const intentRefCallback = useRef<OnIntentHookData | null>(null);
   const allowanceRefCallback = useRef<OnAllowanceHookData | null>(null);
+  const isInitializing = useRef(false);
 
   const initializeNexus = async () => {
+    // Guard against concurrent calls
+    if (isInitializing.current) {
+      console.log("Initialization already in progress, skipping");
+      return;
+    }
+
+    if (sdk.isInitialized()) {
+      console.log("Nexus is already initialized, skipping");
+      setNexusSDK(sdk);
+      return;
+    }
+
+    isInitializing.current = true;
+
     try {
-      if (sdk.isInitialized()) throw new Error("Nexus is already initialized");
       const provider = (await connector?.getProvider()) as EthereumProvider;
       if (!provider) throw new Error("No provider found");
+
+      console.log("Starting Nexus initialization...");
       await sdk.initialize(provider);
       setNexusSDK(sdk);
-    } catch (error) {
+      console.log("Nexus initialized successfully");
+    } catch (error: any) {
+      // Suppress MetaMask pending request error on reload
+      if (
+        error?.code === -32002 ||
+        /already pending/i.test(String(error?.message))
+      ) {
+        console.warn("MetaMask request already pending, skipping initialize()");
+        return;
+      }
       console.error("Error initializing Nexus:", error);
+      throw error;
+    } finally {
+      isInitializing.current = false;
     }
   };
 
   const deinitializeNexus = async () => {
     try {
-      if (!sdk.isInitialized()) throw new Error("Nexus is not initialized");
+      if (!sdk.isInitialized()) {
+        console.log("Nexus is not initialized, skipping deinit");
+        return;
+      }
       await sdk.deinit();
       setNexusSDK(null);
     } catch (error) {
