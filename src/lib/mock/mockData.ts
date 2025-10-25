@@ -254,4 +254,4 @@ export const MOCK_REBALANCE_ANALYSIS: RebalanceAnalysis = {
 };
 
 // Mock mode flag (set to false when backend is ready)
-export const USE_MOCK_DATA = true;
+export const USE_MOCK_DATA = false;

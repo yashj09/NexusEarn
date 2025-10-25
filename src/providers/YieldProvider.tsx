@@ -21,6 +21,14 @@ import type {
 import { YieldAggregator } from "@/services/yield/YieldAggregator";
 import { BalanceTracker } from "@/services/nexus/BalanceTracker";
 import { BridgeExecutor } from "@/services/nexus/BridgeExecutor";
+import { AvailDAService } from "@/services/avail/AvailDAService";
+import { handleError } from "@/lib/errors/errors";
+import { ENV } from "@/lib/config/env";
+import {
+  MOCK_YIELD_OPPORTUNITIES,
+  MOCK_YIELD_POSITIONS,
+  MOCK_STABLE_BALANCES,
+} from "@/lib/mock/mockData";
 
 interface YieldContextType {
   // State
@@ -36,6 +44,9 @@ interface YieldContextType {
   isLoadingBalances: boolean;
   isCalculating: boolean;
 
+  // Error state
+  error: string | null;
+
   // Actions
   refreshOpportunities: () => Promise<void>;
   refreshPositions: () => Promise<void>;
@@ -43,6 +54,7 @@ interface YieldContextType {
   calculateRebalance: () => Promise<void>;
   executeRebalance: (intentId: string) => Promise<void>;
   updateGuardrails: (config: Partial<GuardrailsConfig>) => void;
+  clearError: () => void;
 
   // Helpers
   getTotalValue: () => number;
@@ -54,7 +66,7 @@ const YieldContext = createContext<YieldContextType | null>(null);
 
 const DEFAULT_GUARDRAILS: GuardrailsConfig = {
   maxSlippage: 0.5,
-  gasCeiling: BigInt("100000000000000000"), // 0.1 ETH
+  gasCeiling: BigInt("100000000000000000"),
   minAPYDelta: 1.0,
   maxSingleProtocolAllocation: 40,
   blacklistedProtocols: [],
@@ -73,6 +85,7 @@ export function YieldProvider({ children }: { children: ReactNode }) {
   const [analysis, setAnalysis] = useState<RebalanceAnalysis | null>(null);
   const [guardrails, setGuardrails] =
     useState<GuardrailsConfig>(DEFAULT_GUARDRAILS);
+  const [error, setError] = useState<string | null>(null);
 
   // Loading states
   const [isLoadingOpportunities, setIsLoadingOpportunities] = useState(false);
@@ -93,32 +106,59 @@ export function YieldProvider({ children }: { children: ReactNode }) {
     () => (nexusSDK ? new BridgeExecutor(nexusSDK) : null),
     [nexusSDK]
   );
+  const availDA = useMemo(() => new AvailDAService(), []);
+
+  // Clear error
+  const clearError = useCallback(() => setError(null), []);
 
   // Refresh opportunities
   const refreshOpportunities = useCallback(async () => {
+    if (ENV.USE_MOCK_DATA) {
+      setOpportunities(MOCK_YIELD_OPPORTUNITIES);
+      return;
+    }
+
     setIsLoadingOpportunities(true);
+    setError(null);
     try {
       const data = await aggregator.findOptimalOpportunities(positions, "0");
       setOpportunities(data);
-    } catch (error) {
-      console.error("Failed to refresh opportunities:", error);
+
+      // Post to Avail DA
+      await availDA.postYieldSnapshot({
+        timestamp: Date.now(),
+        opportunities: data,
+        totalTVL: data.reduce((sum, opp) => sum + opp.tvl, 0),
+      });
+    } catch (err) {
+      const errorMsg = handleError(err);
+      setError(errorMsg);
+      console.error("Failed to refresh opportunities:", err);
     } finally {
       setIsLoadingOpportunities(false);
     }
-  }, [aggregator, positions]);
+  }, [aggregator, positions, availDA]);
 
   // Refresh positions
   const refreshPositions = useCallback(async () => {
     if (!balanceTracker || !address) return;
 
+    if (ENV.USE_MOCK_DATA) {
+      setPositions(MOCK_YIELD_POSITIONS);
+      return;
+    }
+
     setIsLoadingPositions(true);
+    setError(null);
     try {
       const data = await balanceTracker.fetchYieldPositions(
         address as `0x${string}`
       );
       setPositions(data);
-    } catch (error) {
-      console.error("Failed to refresh positions:", error);
+    } catch (err) {
+      const errorMsg = handleError(err);
+      setError(errorMsg);
+      console.error("Failed to refresh positions:", err);
     } finally {
       setIsLoadingPositions(false);
     }
@@ -128,12 +168,20 @@ export function YieldProvider({ children }: { children: ReactNode }) {
   const refreshBalances = useCallback(async () => {
     if (!balanceTracker) return;
 
+    if (ENV.USE_MOCK_DATA) {
+      setStableBalances(MOCK_STABLE_BALANCES);
+      return;
+    }
+
     setIsLoadingBalances(true);
+    setError(null);
     try {
       const data = await balanceTracker.getStableBalances();
       setStableBalances(data);
-    } catch (error) {
-      console.error("Failed to refresh balances:", error);
+    } catch (err) {
+      const errorMsg = handleError(err);
+      setError(errorMsg);
+      console.error("Failed to refresh balances:", err);
     } finally {
       setIsLoadingBalances(false);
     }
@@ -142,6 +190,7 @@ export function YieldProvider({ children }: { children: ReactNode }) {
   // Calculate rebalance
   const calculateRebalance = useCallback(async () => {
     setIsCalculating(true);
+    setError(null);
     try {
       const idleBalance = stableBalances
         .filter((b) => b.isIdle)
@@ -153,8 +202,10 @@ export function YieldProvider({ children }: { children: ReactNode }) {
         idleBalance
       );
       setAnalysis(result);
-    } catch (error) {
-      console.error("Failed to calculate rebalance:", error);
+    } catch (err) {
+      const errorMsg = handleError(err);
+      setError(errorMsg);
+      console.error("Failed to calculate rebalance:", err);
     } finally {
       setIsCalculating(false);
     }
@@ -172,19 +223,32 @@ export function YieldProvider({ children }: { children: ReactNode }) {
         throw new Error("Intent not found");
       }
 
+      setError(null);
       try {
-        await bridgeExecutor.executeRebalance(
+        const result = await bridgeExecutor.executeRebalance(
           intent,
           address as `0x${string}`,
-          "USDC" // Would determine from intent
+          "USDC"
         );
+
+        // Post event to Avail DA
+        await availDA.postRebalanceEvent({
+          timestamp: Date.now(),
+          userAddress: address,
+          fromProtocol: intent.from.protocol,
+          toProtocol: intent.to.protocol,
+          amount: intent.from.amount,
+          txHash: result.depositResult.executeTransactionHash || "",
+        });
 
         // Refresh data after execution
         await Promise.all([refreshPositions(), refreshBalances()]);
         await calculateRebalance();
-      } catch (error) {
-        console.error("Failed to execute rebalance:", error);
-        throw error;
+      } catch (err) {
+        const errorMsg = handleError(err);
+        setError(errorMsg);
+        console.error("Failed to execute rebalance:", err);
+        throw err;
       }
     },
     [
@@ -194,6 +258,7 @@ export function YieldProvider({ children }: { children: ReactNode }) {
       refreshPositions,
       refreshBalances,
       calculateRebalance,
+      availDA,
     ]
   );
 
@@ -224,14 +289,18 @@ export function YieldProvider({ children }: { children: ReactNode }) {
       .reduce((sum, b) => sum + b.totalValueUSD, 0);
   }, [stableBalances]);
 
-  // Auto-refresh on mount and when address changes
+  // Auto-refresh on mount
   useEffect(() => {
-    if (nexusSDK && address) {
+    if (nexusSDK && address && !ENV.USE_MOCK_DATA) {
       Promise.all([
         refreshOpportunities(),
         refreshPositions(),
         refreshBalances(),
       ]);
+    } else if (ENV.USE_MOCK_DATA) {
+      setOpportunities(MOCK_YIELD_OPPORTUNITIES);
+      setPositions(MOCK_YIELD_POSITIONS);
+      setStableBalances(MOCK_STABLE_BALANCES);
     }
   }, [nexusSDK, address]);
 
@@ -246,12 +315,14 @@ export function YieldProvider({ children }: { children: ReactNode }) {
       isLoadingPositions,
       isLoadingBalances,
       isCalculating,
+      error,
       refreshOpportunities,
       refreshPositions,
       refreshBalances,
       calculateRebalance,
       executeRebalance,
       updateGuardrails,
+      clearError,
       getTotalValue,
       getTotalYield,
       getIdleBalance,
@@ -266,12 +337,14 @@ export function YieldProvider({ children }: { children: ReactNode }) {
       isLoadingPositions,
       isLoadingBalances,
       isCalculating,
+      error,
       refreshOpportunities,
       refreshPositions,
       refreshBalances,
       calculateRebalance,
       executeRebalance,
       updateGuardrails,
+      clearError,
       getTotalValue,
       getTotalYield,
       getIdleBalance,
@@ -290,3 +363,5 @@ export function useYield() {
   }
   return context;
 }
+
+export default YieldProvider;
