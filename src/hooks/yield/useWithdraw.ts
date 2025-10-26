@@ -5,6 +5,7 @@ import { useAccount } from "wagmi";
 import type { YieldPosition } from "@/lib/types/yield.types";
 import { useNexus } from "@/providers/NexusProvider";
 import { BridgeExecutor } from "@/services/nexus/BridgeExecutor";
+import { MockTransactionService } from "@/services/mock/MockTransactionService";
 import { handleError } from "@/lib/errors/errors";
 import { ENV } from "@/lib/config/env";
 
@@ -18,21 +19,28 @@ export function useWithdraw() {
 
   const withdraw = useCallback(
     async (position: YieldPosition, amount: string): Promise<boolean> => {
-      if (ENV.USE_MOCK_DATA) {
-        setError("Cannot execute transactions in mock mode");
-        return false;
-      }
-
-      if (!nexusSDK || !address) {
-        setError("Wallet not connected or Nexus not initialized");
-        return false;
-      }
-
       setIsWithdrawing(true);
       setError(null);
       setTxHash(null);
 
       try {
+        if (ENV.USE_MOCK_DATA) {
+          // Simulate withdrawal
+          const result = await MockTransactionService.simulateWithdraw(
+            position,
+            amount
+          );
+
+          setTxHash(result.txHash);
+          return result.success;
+        }
+
+        // Real withdrawal
+        if (!nexusSDK || !address) {
+          setError("Wallet not connected or Nexus not initialized");
+          return false;
+        }
+
         const bridgeExecutor = new BridgeExecutor(nexusSDK);
 
         const result = await bridgeExecutor.executeYieldWithdraw(

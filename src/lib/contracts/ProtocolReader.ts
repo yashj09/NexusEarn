@@ -5,12 +5,16 @@ import {
   COMPOUND_COMET_ABI,
   YEARN_VAULT_ABI,
 } from "@/lib/constants/abis";
-import { getTokenAddress } from "@/lib/constants/tokenAddresses";
-import type { YieldPosition, ProtocolName } from "@/lib/types/yield.types";
+import {
+  getTokenAddress,
+  getTokenDecimals,
+} from "@/lib/constants/tokenAddresses";
 import type {
-  SUPPORTED_CHAINS_IDS,
-  SUPPORTED_TOKENS,
-} from "@avail-project/nexus-core";
+  YieldPosition,
+  ProtocolName,
+  EXTENDED_TOKENS,
+} from "@/lib/types/yield.types";
+import type { SUPPORTED_CHAINS_IDS } from "@avail-project/nexus-core";
 
 /**
  * Read user positions from on-chain protocols
@@ -22,7 +26,7 @@ export class ProtocolReader {
   async getAavePosition(
     chainId: SUPPORTED_CHAINS_IDS,
     userAddress: `0x${string}`,
-    token: SUPPORTED_TOKENS
+    token: EXTENDED_TOKENS
   ): Promise<YieldPosition | null> {
     try {
       const publicClient = getPublicClient(chainId);
@@ -39,13 +43,22 @@ export class ProtocolReader {
         args: [userAddress],
       });
 
-      const [totalCollateral, totalDebt] = accountData as [bigint, bigint];
+      const data = accountData as readonly [
+        bigint,
+        bigint,
+        bigint,
+        bigint,
+        bigint,
+        bigint
+      ];
+      const totalCollateral = data[0];
+      const totalDebt = data[1];
       const depositedAmount = totalCollateral - totalDebt;
 
-      if (depositedAmount === 0n) return null;
+      if (depositedAmount === BigInt(0)) return null;
 
       // Convert to human-readable format
-      const decimals = token === "DAI" ? 18 : 6;
+      const decimals = getTokenDecimals(token);
       const depositedStr = (Number(depositedAmount) / 10 ** decimals).toFixed(
         2
       );
@@ -82,7 +95,7 @@ export class ProtocolReader {
   async getCompoundPosition(
     chainId: SUPPORTED_CHAINS_IDS,
     userAddress: `0x${string}`,
-    token: SUPPORTED_TOKENS
+    token: EXTENDED_TOKENS
   ): Promise<YieldPosition | null> {
     try {
       const publicClient = getPublicClient(chainId);
@@ -98,9 +111,9 @@ export class ProtocolReader {
         args: [userAddress],
       });
 
-      if (balance === 0n) return null;
+      if (balance === BigInt(0)) return null;
 
-      const decimals = token === "DAI" ? 18 : 6;
+      const decimals = getTokenDecimals(token);
       const depositedStr = (Number(balance) / 10 ** decimals).toFixed(2);
 
       // Compound shows 1:1 balance (includes earned interest)
@@ -133,7 +146,7 @@ export class ProtocolReader {
   async getYearnPosition(
     chainId: SUPPORTED_CHAINS_IDS,
     userAddress: `0x${string}`,
-    token: SUPPORTED_TOKENS
+    token: EXTENDED_TOKENS
   ): Promise<YieldPosition | null> {
     try {
       const publicClient = getPublicClient(chainId);
@@ -149,7 +162,7 @@ export class ProtocolReader {
         args: [userAddress],
       });
 
-      if (shares === 0n) return null;
+      if (shares === BigInt(0)) return null;
 
       // Get price per share to calculate value
       const pricePerShare = await publicClient.readContract({
@@ -159,7 +172,7 @@ export class ProtocolReader {
         args: [],
       });
 
-      const decimals = token === "DAI" ? 18 : 6;
+      const decimals = getTokenDecimals(token);
       const totalValue =
         (shares * (pricePerShare as bigint)) / BigInt(10 ** decimals);
       const currentStr = (Number(totalValue) / 10 ** decimals).toFixed(2);
@@ -194,7 +207,7 @@ export class ProtocolReader {
   async getAllPositions(
     userAddress: `0x${string}`,
     chains: SUPPORTED_CHAINS_IDS[],
-    tokens: SUPPORTED_TOKENS[]
+    tokens: EXTENDED_TOKENS[]
   ): Promise<YieldPosition[]> {
     const positions: YieldPosition[] = [];
 

@@ -5,6 +5,7 @@ import { useAccount, useWalletClient, usePublicClient } from "wagmi";
 import type { YieldOpportunity } from "@/lib/types/yield.types";
 import { useNexus } from "@/providers/NexusProvider";
 import { BridgeExecutor } from "@/services/nexus/BridgeExecutor";
+import { MockTransactionService } from "@/services/mock/MockTransactionService";
 import {
   getTokenAddress,
   getTokenDecimals,
@@ -13,10 +14,8 @@ import { parseUnits } from "viem";
 import { handleError } from "@/lib/errors/errors";
 import { ENV } from "@/lib/config/env";
 import { ERC20_ABI } from "@/lib/constants/abis";
-import type {
-  SUPPORTED_CHAINS_IDS,
-  SUPPORTED_TOKENS,
-} from "@avail-project/nexus-core";
+import { SUPPORTED_CHAINS } from "@avail-project/nexus-core";
+import type { SUPPORTED_CHAINS_IDS } from "@avail-project/nexus-core";
 
 export function useDeposit() {
   const { address, chain } = useAccount();
@@ -35,6 +34,12 @@ export function useDeposit() {
    */
   const checkApproval = useCallback(
     async (opportunity: YieldOpportunity, amount: string): Promise<boolean> => {
+      if (ENV.USE_MOCK_DATA) {
+        // In mock mode, always need approval first time
+        setNeedsApproval(true);
+        return true;
+      }
+
       if (!address || !publicClient) return false;
 
       try {
@@ -45,7 +50,6 @@ export function useDeposit() {
         const decimals = getTokenDecimals(opportunity.token);
         const amountWei = parseUnits(amount, decimals);
 
-        // Check current allowance
         const allowance = await publicClient.readContract({
           address: tokenAddress,
           abi: ERC20_ABI,
@@ -69,15 +73,25 @@ export function useDeposit() {
    */
   const approve = useCallback(
     async (opportunity: YieldOpportunity, amount: string): Promise<boolean> => {
-      if (!walletClient || !address) {
-        setError("Wallet not connected");
-        return false;
-      }
-
       setIsApproving(true);
       setError(null);
 
       try {
+        if (ENV.USE_MOCK_DATA) {
+          // Simulate approval
+          const result = await MockTransactionService.simulateApproval(
+            opportunity.token,
+            amount
+          );
+          setNeedsApproval(false);
+          return result.success;
+        }
+
+        if (!walletClient || !address) {
+          setError("Wallet not connected");
+          return false;
+        }
+
         const tokenAddress = getTokenAddress(
           opportunity.token,
           opportunity.chainId
@@ -85,7 +99,6 @@ export function useDeposit() {
         const decimals = getTokenDecimals(opportunity.token);
         const amountWei = parseUnits(amount, decimals);
 
-        // Send approval transaction
         const hash = await walletClient.writeContract({
           address: tokenAddress,
           abi: ERC20_ABI,
@@ -93,7 +106,6 @@ export function useDeposit() {
           args: [opportunity.contractAddress, amountWei],
         });
 
-        // Wait for confirmation
         if (publicClient) {
           await publicClient.waitForTransactionReceipt({ hash });
         }
@@ -116,24 +128,25 @@ export function useDeposit() {
    */
   const deposit = useCallback(
     async (opportunity: YieldOpportunity, amount: string): Promise<boolean> => {
-      if (ENV.USE_MOCK_DATA) {
-        setError("Cannot execute transactions in mock mode");
-        return false;
-      }
-
-      if (!nexusSDK || !address) {
-        setError("Wallet not connected or Nexus not initialized");
-        return false;
-      }
-
       setError(null);
       setTxHash(null);
 
       try {
-        // Check if approval is needed
-        const needsApprovalCheck = await checkApproval(opportunity, amount);
+        // Validate amount
+        if (ENV.USE_MOCK_DATA) {
+          if (
+            !MockTransactionService.hasSufficientBalance(
+              opportunity.token,
+              amount
+            )
+          ) {
+            setError("Insufficient balance");
+            return false;
+          }
+        }
 
-        // Approve if needed
+        // Check approval
+        const needsApprovalCheck = await checkApproval(opportunity, amount);
         if (needsApprovalCheck) {
           const approved = await approve(opportunity, amount);
           if (!approved) return false;
@@ -142,19 +155,28 @@ export function useDeposit() {
         // Execute deposit
         setIsDepositing(true);
 
-        const bridgeExecutor = new BridgeExecutor(nexusSDK);
+        if (ENV.USE_MOCK_DATA) {
+          // Simulate deposit
+          const result = await MockTransactionService.simulateDeposit(
+            opportunity,
+            amount,
+            address || "0x0000000000000000000000000000000000000000"
+          );
 
-        // If same chain as current, just deposit
-        // If different chain, bridge + deposit
-        const currentChainId = (chain?.id ?? 1) as SUPPORTED_CHAINS_IDS;
-
-        if (currentChainId === opportunity.chainId) {
-          // Direct deposit (would need direct deposit method)
-          console.log("Direct deposit on same chain");
-          // For now, use bridge executor with same chain
+          setTxHash(result.txHash);
+          return result.success;
         }
 
-        // Create rebalance intent structure for deposit
+        // Real deposit
+        if (!nexusSDK || !address) {
+          setError("Wallet not connected or Nexus not initialized");
+          return false;
+        }
+
+        const bridgeExecutor = new BridgeExecutor(nexusSDK);
+        const currentChainId: SUPPORTED_CHAINS_IDS =
+          (chain?.id as SUPPORTED_CHAINS_IDS) ?? SUPPORTED_CHAINS.ETHEREUM;
+
         const depositIntent = {
           id: `deposit-${Date.now()}`,
           from: {
@@ -188,7 +210,7 @@ export function useDeposit() {
         const result = await bridgeExecutor.executeYieldDeposit(
           depositIntent,
           address as `0x${string}`,
-          opportunity.token as unknown as SUPPORTED_TOKENS
+          opportunity.token
         );
 
         setTxHash(result.executeTransactionHash || "");

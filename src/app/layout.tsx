@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CrossYield - Adaptive Multi-Chain Yield Optimizer",
+  title: "NexusEarn - Adaptive Multi-Chain Yield Optimizer",
   description:
     "Maximize your stablecoin yields across all chains with intelligent rebalancing powered by Avail Nexus",
 };

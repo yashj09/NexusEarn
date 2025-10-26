@@ -100,32 +100,7 @@ export const MOCK_YIELD_OPPORTUNITIES: YieldOpportunity[] = [
   },
 ];
 
-export const MOCK_YIELD_POSITIONS: YieldPosition[] = [
-  {
-    id: "position-1",
-    protocol: "Aave",
-    chainId: SUPPORTED_CHAINS.ETHEREUM,
-    token: "USDC",
-    depositedAmount: "5000",
-    currentValue: "5210",
-    apy: 4.2,
-    earnedYield: "210",
-    depositTimestamp: Date.now() - 90 * 24 * 60 * 60 * 1000, // 90 days ago
-    contractAddress: "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2",
-  },
-  {
-    id: "position-2",
-    protocol: "Compound",
-    chainId: SUPPORTED_CHAINS.POLYGON,
-    token: "USDC",
-    depositedAmount: "3000",
-    currentValue: "3095",
-    apy: 3.8,
-    earnedYield: "95",
-    depositTimestamp: Date.now() - 60 * 24 * 60 * 60 * 1000, // 60 days ago
-    contractAddress: "0xF25212E676D1F7F89Cd72fFEe66158f541246445",
-  },
-];
+export const MOCK_YIELD_POSITIONS: YieldPosition[] = [];
 
 export const MOCK_STABLE_BALANCES: StableBalance[] = [
   {

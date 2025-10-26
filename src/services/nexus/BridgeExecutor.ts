@@ -4,7 +4,11 @@ import type {
   SUPPORTED_CHAINS_IDS,
   SUPPORTED_TOKENS,
 } from "@avail-project/nexus-core";
-import type { RebalanceIntent, ProtocolName } from "@/lib/types/yield.types";
+import type {
+  RebalanceIntent,
+  ProtocolName,
+  EXTENDED_TOKENS,
+} from "@/lib/types/yield.types";
 import { PROTOCOL_ABIS } from "@/lib/constants/abis";
 import { PROTOCOL_CONFIGS } from "@/lib/config/protocols";
 import { parseUnits } from "viem";
@@ -22,7 +26,7 @@ export class BridgeExecutor {
   async executeYieldDeposit(
     intent: RebalanceIntent,
     userAddress: `0x${string}`,
-    token: SUPPORTED_TOKENS
+    token: EXTENDED_TOKENS
   ): Promise<BridgeAndExecuteResult> {
     console.log("🚀 Executing yield deposit:", {
       from: intent.from.chainId,
@@ -47,7 +51,7 @@ export class BridgeExecutor {
       // Execute bridge + deposit in one transaction
       const result = await this.sdk.bridgeAndExecute({
         toChainId: intent.to.chainId,
-        token,
+        token: this.toSupportedToken(token),
         amount: intent.from.amount,
         recipient: userAddress,
         execute: {
@@ -56,7 +60,7 @@ export class BridgeExecutor {
           functionName: protocolConfig.depositFunction,
           buildFunctionParams: () => functionParams,
           tokenApproval: {
-            token,
+            token: this.toSupportedToken(token),
             amount: intent.from.amount,
           },
         },
@@ -81,7 +85,7 @@ export class BridgeExecutor {
     chainId: SUPPORTED_CHAINS_IDS,
     protocol: ProtocolName,
     contractAddress: `0x${string}`,
-    token: SUPPORTED_TOKENS,
+    token: EXTENDED_TOKENS,
     amount: string,
     userAddress: `0x${string}`
   ): Promise<any> {
@@ -126,7 +130,7 @@ export class BridgeExecutor {
   async executeRebalance(
     intent: RebalanceIntent,
     userAddress: `0x${string}`,
-    token: SUPPORTED_TOKENS
+    token: EXTENDED_TOKENS
   ): Promise<{
     withdrawResult: any;
     depositResult: BridgeAndExecuteResult;
@@ -164,7 +168,7 @@ export class BridgeExecutor {
    */
   private buildDepositParams(
     protocol: ProtocolName,
-    token: SUPPORTED_TOKENS,
+    token: EXTENDED_TOKENS,
     amount: string,
     chainId: SUPPORTED_CHAINS_IDS,
     userAddress: `0x${string}`
@@ -212,7 +216,7 @@ export class BridgeExecutor {
    */
   private buildWithdrawParams(
     protocol: ProtocolName,
-    token: SUPPORTED_TOKENS,
+    token: EXTENDED_TOKENS,
     amount: string,
     userAddress: `0x${string}`
   ): readonly unknown[] {
@@ -250,7 +254,7 @@ export class BridgeExecutor {
    * Get token contract address for chain
    */
   private getTokenAddress(
-    token: SUPPORTED_TOKENS,
+    token: EXTENDED_TOKENS,
     chainId: number
   ): `0x${string}` {
     // Token addresses per chain (simplified - would import from nexus-core)
@@ -273,6 +277,16 @@ export class BridgeExecutor {
     };
 
     return addresses[token]?.[chainId] || addresses[token][1];
+  }
+
+  /**
+   * Narrow EXTENDED_TOKENS to SUPPORTED_TOKENS for SDK calls
+   */
+  private toSupportedToken(token: EXTENDED_TOKENS): SUPPORTED_TOKENS {
+    if ((token as string) === "DAI") {
+      throw new Error("DAI is not supported by the bridge SDK yet");
+    }
+    return token as SUPPORTED_TOKENS;
   }
 
   /**

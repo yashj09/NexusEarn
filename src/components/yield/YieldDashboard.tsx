@@ -20,9 +20,17 @@ import { GuardrailsConfig } from "./GuardrailsConfig";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Settings } from "lucide-react";
 import { ENV } from "@/lib/config/env";
-
+import { RotateCcw } from "lucide-react";
+import { MockTransactionService } from "@/services/mock/MockTransactionService";
 export function YieldDashboard() {
   const { isInitialized } = useNexus();
+  const handleReset = () => {
+    if (ENV.USE_MOCK_DATA) {
+      MockTransactionService.reset();
+      window.location.reload();
+    }
+  };
+
   const {
     opportunities,
     positions,
@@ -62,13 +70,35 @@ export function YieldDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
-            CrossYield Dashboard
+            NexusEarn Dashboard
           </h1>
           <p className="text-muted-foreground">
             Adaptive multi-chain yield optimization powered by Avail Nexus
           </p>
         </div>
         <div className="flex gap-2">
+          {ENV.USE_MOCK_DATA && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleReset}
+              title="Reset Mock Data"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleRefreshAll}
+            disabled={isLoadingOpportunities || isLoadingPositions}
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${
+                isLoadingOpportunities ? "animate-spin" : ""
+              }`}
+            />
+          </Button>
           <Button
             variant="outline"
             size="icon"
@@ -90,19 +120,6 @@ export function YieldDashboard() {
           </Button>
         </div>
       </div>
-
-      {/* Mock Data Banner */}
-      {ENV.USE_MOCK_DATA && (
-        <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
-          <CardContent className="pt-6">
-            <p className="text-sm text-yellow-800 dark:text-yellow-200">
-              📊 <strong>Demo Mode:</strong> Currently displaying mock data.
-              Connect your wallet and set NEXT_PUBLIC_USE_MOCK_DATA=false in
-              .env to see real balances and execute transactions.
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Metrics Overview */}
       <YieldMetricsCards

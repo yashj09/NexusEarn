@@ -1,4 +1,4 @@
-# CrossYield
+# NexusEarn
 
 > **Adaptive Multi-Chain Yield Optimizer** - Maximize stablecoin yields across chains with intelligent rebalancing powered by Avail Nexus.
 
@@ -59,7 +59,7 @@
 ## 🗂️ Project Structure
 
 ```
-crossyield/
+NexusEarn/
 ├── src/
 │   ├── app/                 # Next.js app router
 │   ├── components/
