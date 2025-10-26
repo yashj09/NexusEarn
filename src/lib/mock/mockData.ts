@@ -5,6 +5,7 @@ import type {
   RebalanceAnalysis,
 } from "@/lib/types/yield.types";
 import { SUPPORTED_CHAINS } from "@avail-project/nexus-core";
+import { ENV } from "@/lib/config/env";
 
 export const MOCK_YIELD_OPPORTUNITIES: YieldOpportunity[] = [
   {
@@ -254,4 +255,4 @@ export const MOCK_REBALANCE_ANALYSIS: RebalanceAnalysis = {
 };
 
 // Mock mode flag (set to false when backend is ready)
-export const USE_MOCK_DATA = false;
+export const USE_MOCK_DATA = ENV.USE_MOCK_DATA;

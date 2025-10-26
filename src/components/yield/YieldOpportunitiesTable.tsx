@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Table,
   TableBody,
@@ -21,6 +22,7 @@ import {
 } from "@/utils/formatters";
 import type { YieldOpportunity } from "@/lib/types/yield.types";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DepositModal } from "./modals/DepositModal";
 
 interface YieldOpportunitiesTableProps {
   opportunities: YieldOpportunity[];
@@ -31,6 +33,15 @@ export function YieldOpportunitiesTable({
   opportunities,
   isLoading,
 }: YieldOpportunitiesTableProps) {
+  const [selectedOpportunity, setSelectedOpportunity] =
+    useState<YieldOpportunity | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleDeposit = (opportunity: YieldOpportunity) => {
+    setSelectedOpportunity(opportunity);
+    setIsModalOpen(true);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-2">
@@ -54,63 +65,75 @@ export function YieldOpportunitiesTable({
   }
 
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Protocol</TableHead>
-            <TableHead>Chain</TableHead>
-            <TableHead>Token</TableHead>
-            <TableHead className="text-right">APY</TableHead>
-            <TableHead className="text-right">TVL</TableHead>
-            <TableHead>Risk</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Action</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {opportunities.slice(0, 10).map((opportunity) => (
-            <TableRow key={opportunity.id}>
-              <TableCell className="font-medium">
-                {opportunity.protocol}
-              </TableCell>
-              <TableCell>
-                <Badge variant="outline">
-                  {formatChainName(opportunity.chainId)}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <Badge variant="secondary">{opportunity.token}</Badge>
-              </TableCell>
-              <TableCell className="text-right">
-                <span className="font-semibold text-green-600">
-                  {formatAPY(opportunity.apy)}
-                </span>
-              </TableCell>
-              <TableCell className="text-right text-muted-foreground">
-                ${formatLargeNumber(opportunity.tvl)}
-              </TableCell>
-              <TableCell>
-                <span className={getRiskColor(opportunity.riskScore)}>
-                  {formatRiskLabel(opportunity.riskScore)}
-                </span>
-              </TableCell>
-              <TableCell>
-                {opportunity.metadata.auditStatus && (
-                  <Badge variant="outline" className="text-green-600">
-                    Audited
-                  </Badge>
-                )}
-              </TableCell>
-              <TableCell className="text-right">
-                <Button size="sm" variant="ghost">
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </TableCell>
+    <>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Protocol</TableHead>
+              <TableHead>Chain</TableHead>
+              <TableHead>Token</TableHead>
+              <TableHead className="text-right">APY</TableHead>
+              <TableHead className="text-right">TVL</TableHead>
+              <TableHead>Risk</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Action</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+          </TableHeader>
+          <TableBody>
+            {opportunities.slice(0, 10).map((opportunity) => (
+              <TableRow key={opportunity.id}>
+                <TableCell className="font-medium">
+                  {opportunity.protocol}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline">
+                    {formatChainName(opportunity.chainId)}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="secondary">{opportunity.token}</Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  <span className="font-semibold text-green-600">
+                    {formatAPY(opportunity.apy)}
+                  </span>
+                </TableCell>
+                <TableCell className="text-right text-muted-foreground">
+                  ${formatLargeNumber(opportunity.tvl)}
+                </TableCell>
+                <TableCell>
+                  <span className={getRiskColor(opportunity.riskScore)}>
+                    {formatRiskLabel(opportunity.riskScore)}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  {opportunity.metadata.auditStatus && (
+                    <Badge variant="outline" className="text-green-600">
+                      Audited
+                    </Badge>
+                  )}
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleDeposit(opportunity)}
+                  >
+                    Deposit <ArrowRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <DepositModal
+        opportunity={selectedOpportunity}
+        open={isModalOpen}
+        onOpenChange={setIsModalOpen}
+      />
+    </>
   );
 }

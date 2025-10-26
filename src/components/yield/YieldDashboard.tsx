@@ -19,12 +19,7 @@ import { YieldMetricsCards } from "./YieldMetricsCards";
 import { GuardrailsConfig } from "./GuardrailsConfig";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Settings } from "lucide-react";
-import {
-  MOCK_YIELD_OPPORTUNITIES,
-  MOCK_YIELD_POSITIONS,
-  MOCK_STABLE_BALANCES,
-  USE_MOCK_DATA,
-} from "@/lib/mock/mockData";
+import { ENV } from "@/lib/config/env";
 
 export function YieldDashboard() {
   const { isInitialized } = useNexus();
@@ -45,16 +40,8 @@ export function YieldDashboard() {
 
   const [showSettings, setShowSettings] = useState(false);
 
-  // Use mock data in development or when not initialized
-  const displayOpportunities =
-    USE_MOCK_DATA || !isInitialized ? MOCK_YIELD_OPPORTUNITIES : opportunities;
-  const displayPositions =
-    USE_MOCK_DATA || !isInitialized ? MOCK_YIELD_POSITIONS : positions;
-  const displayBalances =
-    USE_MOCK_DATA || !isInitialized ? MOCK_STABLE_BALANCES : stableBalances;
-
   const handleRefreshAll = async () => {
-    if (!USE_MOCK_DATA && isInitialized) {
+    if (!ENV.USE_MOCK_DATA && isInitialized) {
       await Promise.all([
         refreshOpportunities(),
         refreshPositions(),
@@ -64,7 +51,7 @@ export function YieldDashboard() {
   };
 
   useEffect(() => {
-    if (isInitialized && !USE_MOCK_DATA) {
+    if (isInitialized && !ENV.USE_MOCK_DATA) {
       handleRefreshAll();
     }
   }, [isInitialized]);
@@ -105,12 +92,13 @@ export function YieldDashboard() {
       </div>
 
       {/* Mock Data Banner */}
-      {USE_MOCK_DATA && (
+      {ENV.USE_MOCK_DATA && (
         <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
           <CardContent className="pt-6">
             <p className="text-sm text-yellow-800 dark:text-yellow-200">
               📊 <strong>Demo Mode:</strong> Currently displaying mock data.
-              Connect your wallet to see real balances and opportunities.
+              Connect your wallet and set NEXT_PUBLIC_USE_MOCK_DATA=false in
+              .env to see real balances and execute transactions.
             </p>
           </CardContent>
         </Card>
@@ -121,7 +109,7 @@ export function YieldDashboard() {
         totalValue={getTotalValue()}
         totalYield={getTotalYield()}
         idleBalance={getIdleBalance()}
-        positions={displayPositions}
+        positions={positions}
       />
 
       {/* Guardrails Settings */}
@@ -158,7 +146,7 @@ export function YieldDashboard() {
             </CardHeader>
             <CardContent>
               <YieldOpportunitiesTable
-                opportunities={displayOpportunities}
+                opportunities={opportunities}
                 isLoading={isLoadingOpportunities}
               />
             </CardContent>
@@ -175,7 +163,7 @@ export function YieldDashboard() {
             </CardHeader>
             <CardContent>
               <YieldPositionsTable
-                positions={displayPositions}
+                positions={positions}
                 isLoading={isLoadingPositions}
               />
             </CardContent>
@@ -188,7 +176,7 @@ export function YieldDashboard() {
 
         <TabsContent value="balances" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {displayBalances.map((balance) => (
+            {stableBalances.map((balance) => (
               <StableBalanceCard key={balance.token} balance={balance} />
             ))}
           </div>

@@ -5,7 +5,7 @@ import type {
   OnAllowanceHookData,
   OnIntentHookData,
 } from "@avail-project/nexus-core";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useAccount } from "wagmi";
 
@@ -32,8 +32,22 @@ const useInitNexus = (sdk: NexusSDK) => {
     isInitializing.current = true;
 
     try {
-      const provider = (await connector?.getProvider()) as EthereumProvider;
+      // Ensure connector is ready (prevents MetaMask prompt on reload before hydration)
+      if (!connector) {
+        console.log("Connector not ready yet, skipping initialize");
+        return;
+      }
+      const provider = (await connector.getProvider()) as EthereumProvider;
       if (!provider) throw new Error("No provider found");
+
+      // Only initialize if the site is already authorized (no MetaMask popup)
+      const accounts = (await (provider as any).request?.({
+        method: "eth_accounts",
+      })) as string[] | undefined;
+      if (!accounts || accounts.length === 0) {
+        console.log("No authorized accounts; skipping Nexus initialize");
+        return;
+      }
 
       console.log("Starting Nexus initialization...");
       await sdk.initialize(provider);

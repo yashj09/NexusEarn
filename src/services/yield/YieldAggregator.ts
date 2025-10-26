@@ -7,7 +7,6 @@ import type {
 } from "@/lib/types/yield.types";
 import { YieldDataFetcher } from "./YieldDataFetcher";
 import { GuardrailsChecker } from "./GuardrailsChecker";
-import { PROTOCOL_CONFIGS } from "@/lib/config/protocols";
 import type {
   SUPPORTED_CHAINS_IDS,
   SUPPORTED_TOKENS,

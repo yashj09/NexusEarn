@@ -54,19 +54,17 @@ const NexusProvider = ({ children }: { children: React.ReactNode }) => {
   }, [sdk, attachEventHooks, initializeNexus]);
 
   useEffect(() => {
-    // AUTO-INITIALIZE when wallet connects (defer a tick to avoid wallet races)
+    // Initialize only after wagmi rehydrates and connector exists
     if (status === "connected" && !sdk.isInitialized()) {
       const t = setTimeout(() => {
-        console.log("Wallet connected, initializing Nexus...");
-        handleInit();
-      }, 50);
+        void handleInit();
+      }, 100);
       return () => clearTimeout(t);
     }
 
     return () => {
-      // Cleanup on unmount only if disconnected
       if (status === "disconnected" && sdk.isInitialized()) {
-        deinitializeNexus();
+        void deinitializeNexus();
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
